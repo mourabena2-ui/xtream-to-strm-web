@@ -1,0 +1,39 @@
+# Stage 1: Build frontend
+FROM node:18-alpine AS frontend-build
+
+WORKDIR /app
+
+COPY frontend/package*.json ./
+RUN npm install
+
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: Build final image
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install Redis
+RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONPATH=/app
+
+# Copy backend requirements and install
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code
+COPY backend/ .
+
+# Copy frontend build from stage 1
+COPY --from=frontend-build /app/dist /app/static
+
+# Copy startup script  
+COPY docker_start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Expose port
+EXPOSE 8000
+
+CMD ["/app/start.sh"]

@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+sql_app.db
+
+# Logs
+*.log
+app.log
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output & Data
+output/
+output_backup/
+data/
+db/
+
+# Redis
+dump.rdb
+
+# Docker
+.dockerignore
+
+# Archives
+*.tar.gz
+*.zip
+
+# Environment
+.env
+.env.local
