@@ -10,4 +10,5 @@ class Category(Base):
     category_id = Column(String, index=True, nullable=False)
     category_name = Column(String, nullable=False)
     type = Column(String, index=True, nullable=False)  # 'movie' or 'series'
+    item_count = Column(Integer, default=0)
     last_sync = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -38,6 +38,7 @@ class CategoryBase(BaseModel):
 
 class CategoryResponse(CategoryBase):
     selected: bool
+    item_count: int = 0
 
 class SelectionUpdate(BaseModel):
     categories: list[CategoryBase]

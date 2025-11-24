@@ -40,7 +40,8 @@ def get_movie_categories(subscription_id: int, db: Session = Depends(get_db)):
         CategoryResponse(
             category_id=cat.category_id,
             category_name=cat.category_name,
-            selected=cat.category_id in selected_ids
+            selected=cat.category_id in selected_ids,
+            item_count=cat.item_count
         )
         for cat in categories
     ]
@@ -65,7 +66,8 @@ def get_series_categories(subscription_id: int, db: Session = Depends(get_db)):
         CategoryResponse(
             category_id=cat.category_id,
             category_name=cat.category_name,
-            selected=cat.category_id in selected_ids
+            selected=cat.category_id in selected_ids,
+            item_count=cat.item_count
         )
         for cat in categories
     ]
@@ -76,6 +78,15 @@ async def sync_movie_categories(subscription_id: int, db: Session = Depends(get_
     client = get_xtream_client(db, subscription_id)
     try:
         categories = await client.get_vod_categories()
+        # Fetch all streams to calculate counts
+        streams = await client.get_vod_streams()
+        
+        # Calculate counts
+        counts = {}
+        for stream in streams:
+            cat_id = str(stream.get("category_id"))
+            counts[cat_id] = counts.get(cat_id, 0) + 1
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch from Xtream: {str(e)}")
 
@@ -88,11 +99,13 @@ async def sync_movie_categories(subscription_id: int, db: Session = Depends(get_
     # Add new categories
     now = datetime.utcnow()
     for cat in categories:
+        cat_id = str(cat["category_id"])
         db.add(Category(
             subscription_id=subscription_id,
-            category_id=str(cat["category_id"]),
+            category_id=cat_id,
             category_name=cat["category_name"],
             type="movie",
+            item_count=counts.get(cat_id, 0),
             last_sync=now
         ))
     
@@ -109,6 +122,15 @@ async def sync_series_categories(subscription_id: int, db: Session = Depends(get
     client = get_xtream_client(db, subscription_id)
     try:
         categories = await client.get_series_categories()
+        # Fetch all series to calculate counts
+        series_list = await client.get_series()
+        
+        # Calculate counts
+        counts = {}
+        for series in series_list:
+            cat_id = str(series.get("category_id"))
+            counts[cat_id] = counts.get(cat_id, 0) + 1
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch from Xtream: {str(e)}")
 
@@ -121,11 +143,13 @@ async def sync_series_categories(subscription_id: int, db: Session = Depends(get
     # Add new categories
     now = datetime.utcnow()
     for cat in categories:
+        cat_id = str(cat["category_id"])
         db.add(Category(
             subscription_id=subscription_id,
-            category_id=str(cat["category_id"]),
+            category_id=cat_id,
             category_name=cat["category_name"],
             type="series",
+            item_count=counts.get(cat_id, 0),
             last_sync=now
         ))
     

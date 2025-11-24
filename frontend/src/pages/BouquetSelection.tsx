@@ -14,6 +14,15 @@ interface Category {
     category_id: string;
     category_name: string;
     selected: boolean;
+    item_count: number;
+}
+
+type SortKey = 'name' | 'id' | 'count';
+type SortDirection = 'asc' | 'desc';
+
+interface SortConfig {
+    key: SortKey;
+    direction: SortDirection;
 }
 
 export default function BouquetSelection() {
@@ -25,6 +34,10 @@ export default function BouquetSelection() {
     const [syncingSeries, setSyncingSeries] = useState(false);
     const [savingMovies, setSavingMovies] = useState(false);
     const [savingSeries, setSavingSeries] = useState(false);
+
+    const [filterText, setFilterText] = useState('');
+    const [movieSort, setMovieSort] = useState<SortConfig>({ key: 'name', direction: 'asc' });
+    const [seriesSort, setSeriesSort] = useState<SortConfig>({ key: 'name', direction: 'asc' });
 
     const [error, setError] = useState<string | null>(null);
 
@@ -148,13 +161,74 @@ export default function BouquetSelection() {
     };
 
     const toggleAllMovies = () => {
-        const allSelected = movieCategories.every(c => c.selected);
-        setMovieCategories(prev => prev.map(c => ({ ...c, selected: !allSelected })));
+        const allSelected = filteredAndSortedMovies.every(c => c.selected);
+        const visibleIds = new Set(filteredAndSortedMovies.map(c => c.category_id));
+
+        setMovieCategories(prev => prev.map(c =>
+            visibleIds.has(c.category_id) ? { ...c, selected: !allSelected } : c
+        ));
     };
 
     const toggleAllSeries = () => {
-        const allSelected = seriesCategories.every(c => c.selected);
-        setSeriesCategories(prev => prev.map(c => ({ ...c, selected: !allSelected })));
+        const allSelected = filteredAndSortedSeries.every(c => c.selected);
+        const visibleIds = new Set(filteredAndSortedSeries.map(c => c.category_id));
+
+        setSeriesCategories(prev => prev.map(c =>
+            visibleIds.has(c.category_id) ? { ...c, selected: !allSelected } : c
+        ));
+    };
+
+    const handleSort = (type: 'movie' | 'series', key: SortKey) => {
+        if (type === 'movie') {
+            setMovieSort(prev => ({
+                key,
+                direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+            }));
+        } else {
+            setSeriesSort(prev => ({
+                key,
+                direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+            }));
+        }
+    };
+
+    const filterAndSort = (categories: Category[], sortConfig: SortConfig) => {
+        let result = [...categories];
+
+        if (filterText) {
+            const lowerFilter = filterText.toLowerCase();
+            result = result.filter(c =>
+                c.category_name.toLowerCase().includes(lowerFilter) ||
+                c.category_id.includes(filterText)
+            );
+        }
+
+        result.sort((a, b) => {
+            let aValue: any = a.category_name;
+            let bValue: any = b.category_name;
+
+            if (sortConfig.key === 'id') {
+                aValue = parseInt(a.category_id) || a.category_id;
+                bValue = parseInt(b.category_id) || b.category_id;
+            } else if (sortConfig.key === 'count') {
+                aValue = a.item_count;
+                bValue = b.item_count;
+            }
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return result;
+    };
+
+    const filteredAndSortedMovies = filterAndSort(movieCategories, movieSort);
+    const filteredAndSortedSeries = filterAndSort(seriesCategories, seriesSort);
+
+    const renderSortIcon = (config: SortConfig, key: SortKey) => {
+        if (config.key !== key) return null;
+        return config.direction === 'asc' ? ' ↑' : ' ↓';
     };
 
     return (
@@ -164,18 +238,30 @@ export default function BouquetSelection() {
                 <p className="text-muted-foreground">Choose which categories to synchronize.</p>
             </div>
 
-            {/* Subscription Selector */}
-            <div className="flex gap-2">
-                <label className="text-sm font-medium self-center">Subscription:</label>
-                <select
-                    value={selectedSubId || ''}
-                    onChange={(e) => setSelectedSubId(Number(e.target.value))}
-                    className="border rounded-md px-3 py-2 text-sm"
-                >
-                    {subscriptions.map(sub => (
-                        <option key={sub.id} value={sub.id}>{sub.name}</option>
-                    ))}
-                </select>
+            {/* Controls Row */}
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="flex gap-2 items-center">
+                    <label className="text-sm font-medium">Subscription:</label>
+                    <select
+                        value={selectedSubId || ''}
+                        onChange={(e) => setSelectedSubId(Number(e.target.value))}
+                        className="border rounded-md px-3 py-2 text-sm min-w-[200px]"
+                    >
+                        {subscriptions.map(sub => (
+                            <option key={sub.id} value={sub.id}>{sub.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="w-full md:w-64">
+                    <input
+                        type="text"
+                        placeholder="Filter categories..."
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 text-sm"
+                    />
+                </div>
             </div>
 
             {error && (
@@ -195,11 +281,11 @@ export default function BouquetSelection() {
                     {/* Movies Column (Left) */}
                     <Card className="flex flex-col h-full">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle>Movies Categories</CardTitle>
+                            <CardTitle>Movies Categories ({filteredAndSortedMovies.length})</CardTitle>
                             <div className="flex gap-2">
                                 <Button size="sm" variant="outline" onClick={syncMovies} disabled={syncingMovies}>
                                     <RefreshCw className={`w-4 h-4 mr-2 ${syncingMovies ? 'animate-spin' : ''}`} />
-                                    Sync Categories
+                                    Sync
                                 </Button>
                                 <Button size="sm" onClick={saveMovies} disabled={savingMovies || movieCategories.length === 0}>
                                     <Save className="w-4 h-4 mr-2" />
@@ -215,18 +301,25 @@ export default function BouquetSelection() {
                                             <tr>
                                                 <th className="p-3 w-10">
                                                     <button onClick={toggleAllMovies}>
-                                                        {movieCategories.every(c => c.selected) ?
+                                                        {filteredAndSortedMovies.length > 0 && filteredAndSortedMovies.every(c => c.selected) ?
                                                             <CheckSquare className="w-4 h-4" /> :
                                                             <Square className="w-4 h-4" />
                                                         }
                                                     </button>
                                                 </th>
-                                                <th className="p-3">Category Name</th>
-                                                <th className="p-3 w-20">ID</th>
+                                                <th className="p-3 cursor-pointer hover:bg-muted" onClick={() => handleSort('movie', 'name')}>
+                                                    Category Name {renderSortIcon(movieSort, 'name')}
+                                                </th>
+                                                <th className="p-3 w-20 cursor-pointer hover:bg-muted" onClick={() => handleSort('movie', 'count')}>
+                                                    Count {renderSortIcon(movieSort, 'count')}
+                                                </th>
+                                                <th className="p-3 w-20 cursor-pointer hover:bg-muted" onClick={() => handleSort('movie', 'id')}>
+                                                    ID {renderSortIcon(movieSort, 'id')}
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
-                                            {movieCategories.map(cat => (
+                                            {filteredAndSortedMovies.map(cat => (
                                                 <tr key={cat.category_id} className="hover:bg-muted/50 transition-colors">
                                                     <td className="p-3">
                                                         <button onClick={() => toggleMovie(cat.category_id)}>
@@ -239,6 +332,7 @@ export default function BouquetSelection() {
                                                     <td className="p-3 font-medium cursor-pointer" onClick={() => toggleMovie(cat.category_id)}>
                                                         {cat.category_name}
                                                     </td>
+                                                    <td className="p-3 text-muted-foreground">{cat.item_count}</td>
                                                     <td className="p-3 text-muted-foreground text-xs">{cat.category_id}</td>
                                                 </tr>
                                             ))}
@@ -247,7 +341,7 @@ export default function BouquetSelection() {
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    Click "Sync Categories" to load data.
+                                    Click "Sync" to load data.
                                 </div>
                             )}
                         </CardContent>
@@ -256,11 +350,11 @@ export default function BouquetSelection() {
                     {/* Series Column (Right) */}
                     <Card className="flex flex-col h-full">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle>Series Categories</CardTitle>
+                            <CardTitle>Series Categories ({filteredAndSortedSeries.length})</CardTitle>
                             <div className="flex gap-2">
                                 <Button size="sm" variant="outline" onClick={syncSeries} disabled={syncingSeries}>
                                     <RefreshCw className={`w-4 h-4 mr-2 ${syncingSeries ? 'animate-spin' : ''}`} />
-                                    Sync Categories
+                                    Sync
                                 </Button>
                                 <Button size="sm" onClick={saveSeries} disabled={savingSeries || seriesCategories.length === 0}>
                                     <Save className="w-4 h-4 mr-2" />
@@ -276,18 +370,25 @@ export default function BouquetSelection() {
                                             <tr>
                                                 <th className="p-3 w-10">
                                                     <button onClick={toggleAllSeries}>
-                                                        {seriesCategories.every(c => c.selected) ?
+                                                        {filteredAndSortedSeries.length > 0 && filteredAndSortedSeries.every(c => c.selected) ?
                                                             <CheckSquare className="w-4 h-4" /> :
                                                             <Square className="w-4 h-4" />
                                                         }
                                                     </button>
                                                 </th>
-                                                <th className="p-3">Category Name</th>
-                                                <th className="p-3 w-20">ID</th>
+                                                <th className="p-3 cursor-pointer hover:bg-muted" onClick={() => handleSort('series', 'name')}>
+                                                    Category Name {renderSortIcon(seriesSort, 'name')}
+                                                </th>
+                                                <th className="p-3 w-20 cursor-pointer hover:bg-muted" onClick={() => handleSort('series', 'count')}>
+                                                    Count {renderSortIcon(seriesSort, 'count')}
+                                                </th>
+                                                <th className="p-3 w-20 cursor-pointer hover:bg-muted" onClick={() => handleSort('series', 'id')}>
+                                                    ID {renderSortIcon(seriesSort, 'id')}
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
-                                            {seriesCategories.map(cat => (
+                                            {filteredAndSortedSeries.map(cat => (
                                                 <tr key={cat.category_id} className="hover:bg-muted/50 transition-colors">
                                                     <td className="p-3">
                                                         <button onClick={() => toggleSeries(cat.category_id)}>
@@ -300,6 +401,7 @@ export default function BouquetSelection() {
                                                     <td className="p-3 font-medium cursor-pointer" onClick={() => toggleSeries(cat.category_id)}>
                                                         {cat.category_name}
                                                     </td>
+                                                    <td className="p-3 text-muted-foreground">{cat.item_count}</td>
                                                     <td className="p-3 text-muted-foreground text-xs">{cat.category_id}</td>
                                                 </tr>
                                             ))}
@@ -308,7 +410,7 @@ export default function BouquetSelection() {
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    Click "Sync Categories" to load data.
+                                    Click "Sync" to load data.
                                 </div>
                             )}
                         </CardContent>
