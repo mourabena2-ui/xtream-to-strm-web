@@ -36,7 +36,7 @@ const frequencyOptions = [
     { value: 'weekly', label: 'Weekly' },
 ];
 
-export default function Scheduler() {
+export default function M3UScheduling() {
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [selectedSubId, setSelectedSubId] = useState<number | null>(null);
     const [moviesConfig, setMoviesConfig] = useState<ScheduleConfig | null>(null);

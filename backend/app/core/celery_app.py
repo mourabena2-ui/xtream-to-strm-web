@@ -16,3 +16,4 @@ celery_app.conf.timezone = 'UTC'
 
 # Import tasks to register them
 from app.tasks import sync  # noqa
+from app.tasks import m3u_sync  # noqa

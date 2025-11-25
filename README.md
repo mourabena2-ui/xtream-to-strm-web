@@ -1,251 +1,390 @@
-# Xtream to STRM Web Application
+# Xtream to STRM Web
 
-A modern web-based application for managing Xtream Codes IPTV subscriptions and generating STRM/NFO files compatible with Jellyfin and Kodi media servers.
+A modern, full-featured web application for managing Xtream Codes and M3U playlist content, generating `.strm` and `.nfo` files compatible with Jellyfin and Kodi.
 
-## 🌟 Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
 
-- **Multi-Subscription Support**: Manage multiple Xtream Codes subscriptions from a single interface
-- **Web-Based Configuration**: Modern, responsive UI for easy setup and management
-- **Automated Scheduling**: Schedule automatic synchronization at custom intervals
-- **Real-Time Monitoring**: Live sync status and progress tracking
-- **Bouquet Selection**: Choose specific categories/bouquets to sync for each subscription
-- **NFO File Generation**: Automatic creation of NFO metadata files for Jellyfin/Kodi
-- **Incremental Updates**: Efficient sync process that only updates changed content
-- **Comprehensive Logging**: Real-time log viewer for troubleshooting
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Screenshots](#-screenshots)
+- [Architecture](#-architecture)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Configuration](#-configuration)
+- [API Documentation](#-api-documentation)
+- [Development](#-development)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+## ✨ Features
+
+### Xtream Codes Support
+- **Multi-Subscription Management**: Manage multiple Xtream Codes subscriptions simultaneously
+- **Selective Bouquet Synchronization**: Choose which categories to sync for movies and series
+- **Intelligent Caching**: Efficient caching system to minimize API calls
+- **Incremental Updates**: Only sync changes since last update
+- **Rich Metadata**: Generates detailed NFO files with TMDB integration
+- **Episode Management**: Full support for TV series with season/episode structure
+
+### M3U Playlist Support
+- **Flexible Source Management**: Support for both URL-based and file upload M3U playlists
+- **Group-Based Selection**: Select specific groups/categories to sync
+- **Type-Specific Sync**: Separate synchronization for Movies and Series
+- **Automatic Parsing**: Intelligent M3U parser with metadata extraction
+- **No Live TV**: Focus on VOD content (Movies and Series only)
+
+### Modern Web Interface
+- **Responsive Dashboard**: Real-time statistics and sync status monitoring
+- **Intuitive Navigation**: Clean, organized menu structure
+- **Dark Mode Support**: Beautiful dark theme for comfortable viewing
+- **Real-Time Updates**: Live sync progress and status updates
+- **Error Handling**: Clear error messages and recovery options
+
+### System Management
+- **Comprehensive Administration**: Database and file management tools
+- **Data Cleanup**: Easy reset and cleanup operations
+- **System Health**: Monitor sync status, errors, and success rates
+- **Source Statistics**: Detailed breakdown of content by source
 
 ## 📸 Screenshots
 
 ### Dashboard
-Monitor sync status for all subscriptions with real-time updates.
+![Dashboard](screenshots/dashboard.png)
+*Overview of all your content with real-time statistics*
 
-![Dashboard](screenshots/dashboard_page.png)
+### XtreamTV Bouquet Selection
+![Bouquet Selection](screenshots/xtream_bouquets.png)
+*Select which categories to sync from your Xtream Codes subscription*
 
-### Configuration
-Manage your Xtream Codes subscriptions.
+### M3U Sources Management
+![M3U Sources](screenshots/m3u_sources.png)
+*Manage your M3U playlist sources with URL or file upload*
 
-![Configuration](screenshots/configuration_page.png)
+### M3U Group Selection
+![M3U Selection](screenshots/m3u_selection.png)
+*Choose which groups to sync with separate Movies and Series controls*
 
-### Bouquet Selection
-Select specific categories/bouquets to sync for movies and series.
+### Administration
+![Administration](screenshots/administration.png)
+*System administration with cleanup and reset tools*
 
-![Bouquet Selection](screenshots/bouquet_selection_page.png)
+## 🏗️ Architecture
 
-### Scheduler
-Configure automated sync schedules for each subscription.
+### Technology Stack
 
-![Scheduler](screenshots/scheduler_page.png)
+**Backend:**
+- **FastAPI**: Modern, fast web framework for building APIs
+- **SQLAlchemy**: SQL toolkit and ORM
+- **Celery**: Distributed task queue for background jobs
+- **Redis**: In-memory data store for caching and task queue
+- **Python 3.11**: Latest Python with improved performance
 
-### Logs
-View real-time application logs for monitoring and troubleshooting.
+**Frontend:**
+- **React 18**: Modern React with hooks and concurrent features
+- **TypeScript**: Type-safe JavaScript
+- **Vite**: Next-generation frontend tooling
+- **TailwindCSS**: Utility-first CSS framework
+- **Shadcn/ui**: Beautiful, accessible component library
 
-![Logs](screenshots/logs_page.png)
+**Infrastructure:**
+- **Docker**: Containerization for easy deployment
+- **Docker Compose**: Multi-container orchestration
+- **SQLite**: Lightweight, embedded database
+- **Uvicorn**: Lightning-fast ASGI server
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Docker
-- Docker Compose
-- Minimum 2GB RAM
-- Xtream Codes API credentials
-
-### Installation
-
-**Option 1: Using Pre-built Docker Image (Recommended - No Build Required)**
-
-```bash
-# Pull and run the image from Docker Hub
-sudo docker run -d \
-  --name xtream_app \
-  -p 80:8000 \
-  -v $(pwd)/output:/output \
-  -v $(pwd)/db:/db \
-  -v $(pwd)/app.log:/app/app.log \
-  --restart unless-stopped \
-  mourabena2ui/xtream-to-strm-web:latest
-```
-
-**Option 2: Build from Source**
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/mourabena2-ui/xtream-to-strm-web.git
-   cd xtream-to-strm-web
-   ```
-
-2. **Start with Docker Compose**
-   ```bash
-   sudo docker-compose up -d --build
-   ```
-
-   Or **build and run with Docker directly**:
-   ```bash
-   sudo docker build -f Dockerfile.single -t xtream-to-strm-web .
-   sudo docker run -d \
-     --name xtream_app \
-     -p 80:8000 \
-     -v $(pwd)/output:/output \
-     -v $(pwd)/db:/db \
-     -v $(pwd)/app.log:/app/app.log \
-     --restart unless-stopped \
-     xtream-to-strm-web
-   ```
-
-### Access the Application
-
-Open your browser and navigate to: `http://localhost`
-
-Default credentials:
-- Username: `admin`
-- Password: `admin`
-
-⚠️ **Important**: Change the default credentials in production!
-
-## ⚙️ Configuration
-
-### Adding a Subscription
-
-1. Navigate to the **Configuration** page
-2. Click "Add Subscription"
-3. Fill in the required fields:
-   - **Name**: A friendly name for your subscription
-   - **Xtream URL**: Your Xtream Codes server URL
-   - **Username**: Your Xtream Codes username
-   - **Password**: Your Xtream Codes password
-   - **Output Directory**: Path where STRM files will be generated (default: `/output`)
-4. Click "Save"
-
-### Selecting Bouquets
-
-1. Navigate to the **Bouquet Selection** page
-2. Select a subscription from the dropdown
-3. Click "List Categories" to fetch available categories
-4. Select the categories you want to sync for movies and/or series
-5. Click "Save Selection"
-
-### Scheduling Automatic Syncs
-
-1. Navigate to the **Scheduler** page
-2. Select a subscription
-3. Choose sync type (Movies or Series)
-4. Set the interval (in hours)
-5. Click "Create Schedule"
-
-## 📁 Directory Structure
+### Project Structure
 
 ```
 xtream_to_strm_web/
-├── backend/              # FastAPI backend
+├── backend/
 │   ├── app/
-│   │   ├── api/         # API endpoints
-│   │   ├── models/      # Database models
-│   │   ├── services/    # Business logic
-│   │   └── tasks/       # Celery tasks
+│   │   ├── api/              # API endpoints
+│   │   │   └── endpoints/    # Route handlers
+│   │   ├── core/             # Core configuration
+│   │   ├── db/               # Database setup
+│   │   ├── models/           # SQLAlchemy models
+│   │   ├── services/         # Business logic
+│   │   └── tasks/            # Celery tasks
 │   └── requirements.txt
-├── frontend/            # React frontend
+├── frontend/
 │   ├── src/
-│   │   ├── components/  # Reusable components
-│   │   └── pages/       # Page components
+│   │   ├── components/       # Reusable components
+│   │   ├── lib/              # Utilities
+│   │   └── pages/            # Page components
 │   └── package.json
-├── db/                  # SQLite database (persistent)
-├── output/              # Generated STRM/NFO files (persistent)
 ├── docker-compose.yml
-└── Dockerfile.single
+├── Dockerfile.single
+└── README.md
 ```
 
-## 🔧 Technical Stack
+## 🚀 Installation
 
-### Backend
-- **FastAPI**: Modern Python web framework
-- **SQLAlchemy**: ORM for database management
-- **Celery**: Distributed task queue for async operations
-- **Redis**: Message broker and result backend
-- **SQLite**: Lightweight database
+### Prerequisites
 
-### Frontend
-- **React**: UI library
-- **TypeScript**: Type-safe JavaScript
-- **Vite**: Build tool
-- **Tailwind CSS**: Utility-first CSS framework
-- **shadcn/ui**: Component library
+- Docker and Docker Compose
+- Git
 
-## 🐳 Docker Configuration
+### Quick Start
 
-The application runs in a single Docker container with:
-- FastAPI backend (port 8000)
-- React frontend (served as static files)
-- Redis server
-- Celery worker
-- Celery beat scheduler
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/xtream_to_strm_web.git
+   cd xtream_to_strm_web
+   ```
 
-### Persistent Volumes
+2. **Build and start the application:**
+   ```bash
+   docker-compose up -d --build
+   ```
 
-- `./db:/db` - Database files
-- `./output:/output` - Generated STRM/NFO files
-- `./app.log:/app/app.log` - Application logs
+3. **Access the web interface:**
+   Open your browser and navigate to `http://localhost`
 
-## 🔐 Security
+4. **Stop the application:**
+   ```bash
+   docker-compose down
+   ```
 
-⚠️ **Important Security Notes**:
+### Manual Installation (Development)
 
-1. **Change default credentials** immediately after first login
-2. **Use environment variables** for sensitive configuration
-3. **Restrict network access** if exposing to the internet
-4. **Keep Docker images updated** regularly
+<details>
+<summary>Click to expand manual installation instructions</summary>
 
-To change admin credentials, modify `backend/app/core/config.py`:
+**Backend:**
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Redis (required for Celery):**
+```bash
+docker run -d -p 6379:6379 redis:alpine
+```
+
+**Celery Worker:**
+```bash
+cd backend
+celery -A app.core.celery_app worker --loglevel=info
+```
+
+</details>
+
+## 📖 Usage
+
+### Adding an Xtream Codes Subscription
+
+1. Navigate to **XtreamTV** → **Subscriptions**
+2. Click **Add Subscription**
+3. Enter your subscription details:
+   - Name
+   - Xtream URL
+   - Username
+   - Password
+   - Output directories for movies and series
+4. Click **Save**
+
+### Selecting Bouquets to Sync
+
+1. Navigate to **XtreamTV** → **Bouquet Selection**
+2. Click **List Categories** to fetch available categories
+3. Select the categories you want to sync for:
+   - Movies
+   - Series
+4. Click **Save Selections**
+5. Use **Sync Movies** or **Sync Series** to start synchronization
+
+### Adding an M3U Source
+
+1. Navigate to **M3U Import** → **Sources**
+2. Choose one of two methods:
+   - **URL**: Enter an M3U playlist URL
+   - **File Upload**: Upload an M3U file
+3. Configure the output directory
+4. Click **Add Source**
+
+### Syncing M3U Content
+
+1. Navigate to **M3U Import** → **Group Selection**
+2. Select your M3U source from the dropdown
+3. Select the groups you want to sync for:
+   - Movies
+   - Series
+4. Click **Save Groups**
+5. Use **Sync Movies** or **Sync Series** to generate .strm files
+
+### Generated File Structure
+
+**Movies:**
+```
+/output/movies/
+└── Movie Name (Year)/
+    ├── Movie Name (Year).strm
+    └── Movie Name (Year).nfo
+```
+
+**Series:**
+```
+/output/series/
+└── Series Name/
+    ├── Season 01/
+    │   ├── Series Name S01E01.strm
+    │   ├── Series Name S01E01.nfo
+    │   └── ...
+    ├── Season 02/
+    │   └── ...
+    └── tvshow.nfo
+```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+The application uses the following configuration (defined in `backend/app/core/config.py`):
+
 ```python
-ADMIN_USER: str = "your_username"
-ADMIN_PASS: str = "your_secure_password"
+API_V1_STR = "/api/v1"          # API prefix
+PROJECT_NAME = "Xtream to STRM"  # Application name
+OUTPUT_DIR = "/output"           # Default output directory
 ```
 
-## 📝 Usage
+### Docker Volumes
 
-### Manual Sync
+The Docker setup mounts the following volumes:
 
-1. Navigate to the **Dashboard**
-2. Click "Sync Now" for the desired subscription and type (Movies/Series)
-3. Monitor progress in real-time
+```yaml
+volumes:
+  - ./output:/output          # Generated .strm files
+  - ./data:/app/data          # SQLite database
+```
 
-### Stopping a Sync
+## 📚 API Documentation
 
-1. Navigate to the **Dashboard**
-2. Click "Stop Sync" on any running synchronization
+The API documentation is automatically generated and available at:
+- **Swagger UI**: `http://localhost/api/v1/docs`
+- **ReDoc**: `http://localhost/api/v1/redoc`
 
-### Viewing Logs
+### Main Endpoints
 
-1. Navigate to the **Logs** page
-2. View real-time application logs
-3. Use for troubleshooting sync issues
+**Dashboard:**
+- `GET /api/v1/dashboard/stats` - Get overall statistics
+- `GET /api/v1/dashboard/recent-activity` - Get recent sync activity
+- `GET /api/v1/dashboard/content-by-source` - Get content breakdown by source
 
-## 🛠️ Troubleshooting
+**XtreamTV:**
+- `GET /api/v1/subscriptions/` - List all subscriptions
+- `POST /api/v1/subscriptions/` - Add a new subscription
+- `POST /api/v1/selection/{subscription_id}/sync` - Sync selected categories
 
-### Application won't start
-- Check Docker logs: `sudo docker-compose logs app`
-- Ensure ports 80 and 8000 are not in use
-- Verify Docker and Docker Compose are installed
+**M3U:**
+- `GET /api/v1/m3u-sources/` - List all M3U sources
+- `POST /api/v1/m3u-sources/` - Add a new M3U source
+- `POST /api/v1/m3u-selection/{source_id}/sync` - Sync selected groups
 
-### Sync fails
-- Check Xtream Codes credentials in Configuration
-- Verify Xtream server is accessible
-- Review logs in the Logs page
+**Administration:**
+- `POST /api/v1/admin/delete-files` - Delete all generated files
+- `POST /api/v1/admin/reset-database` - Reset database
+- `POST /api/v1/admin/reset-all` - Delete files and reset database
 
-### Database issues
-- Database is stored in `./db/xtream.db`
-- To reset: stop container, delete `./db/xtream.db`, restart
+## 🛠️ Development
 
-## 📄 License
+### Running Tests
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```bash
+# Backend tests
+cd backend
+pytest
+
+# Frontend tests
+cd frontend
+npm test
+```
+
+### Code Style
+
+**Backend:**
+```bash
+# Format with black
+black app/
+
+# Lint with flake8
+flake8 app/
+```
+
+**Frontend:**
+```bash
+# Lint
+npm run lint
+
+# Format
+npm run format
+```
+
+### Building for Production
+
+```bash
+docker-compose -f docker-compose.yml build
+docker-compose -f docker-compose.yml up -d
+```
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📧 Support
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-For issues and questions, please open an issue on GitHub.
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Thanks to all contributors who have helped with this project
+- Inspired by the need for a modern web interface for Xtream Codes management
+- Built with love for the Jellyfin and Kodi community
+
+## 📞 Support
+
+If you encounter any issues or have questions, please:
+1. Check the [Issues](https://github.com/yourusername/xtream_to_strm_web/issues) page
+2. Create a new issue if your problem isn't already listed
+3. Provide as much detail as possible, including logs and screenshots
+
+## 🔄 Changelog
+
+### Version 2.0.0 (Current)
+- ✨ Added M3U playlist support
+- ✨ Refactored UI with separate XtreamTV and M3U sections
+- ✨ Removed Live TV functionality (focus on VOD only)
+- ✨ Split sync controls for Movies and Series
+- 🐛 Fixed dashboard statistics calculations
+- 🐛 Improved error handling and user feedback
+- 🎨 Enhanced UI/UX with better navigation
+- 📚 Comprehensive documentation
+
+### Version 1.0.0
+- 🎉 Initial release
+- ✨ Xtream Codes support
+- ✨ Basic web interface
+- ✨ STRM and NFO file generation
 
 ---
 
-**Note**: This application is designed for personal use with legitimate Xtream Codes subscriptions. Please respect content licensing and copyright laws.
+Made with ❤️ by the community

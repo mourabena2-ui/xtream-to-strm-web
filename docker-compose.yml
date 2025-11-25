@@ -12,6 +12,7 @@ services:
       - ./output:/output
       - ./db:/db
       - ./app.log:/app/app.log
+      - ./test.m3u:/app/test.m3u
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1

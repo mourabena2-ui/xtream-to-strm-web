@@ -25,7 +25,7 @@ interface SortConfig {
     direction: SortDirection;
 }
 
-export default function BouquetSelection() {
+export default function XTVSelection() {
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [selectedSubId, setSelectedSubId] = useState<number | null>(null);
     const [movieCategories, setMovieCategories] = useState<Category[]>([]);

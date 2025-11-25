@@ -1,45 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Film, Tv, RefreshCw, AlertCircle, CheckCircle2, StopCircle } from 'lucide-react';
+import { Film, Tv, Activity, HardDrive } from 'lucide-react';
 import api from '@/lib/api';
 
-interface Subscription {
-    id: number;
-    name: string;
-    xtream_url: string;
-    username: string;
-    password: string;
-    output_dir: string;
-    is_active: boolean;
-}
-
-interface SyncStatus {
-    id: number;
-    subscription_id: number;
-    type: string;
-    last_sync: string | null;
-    status: string;
-    items_added: number;
-    items_deleted: number;
-    error_message?: string;
+interface DashboardStats {
+    total_content: {
+        total: number;
+        movies: number;
+        series: number;
+    };
+    sources: {
+        total: number;
+        active: number;
+        inactive: number;
+    };
+    sync_status: {
+        in_progress: number;
+        errors_24h: number;
+        success_rate: number;
+    };
 }
 
 export default function Dashboard() {
-    const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-    const [statuses, setStatuses] = useState<SyncStatus[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
 
     const fetchData = async () => {
         try {
-            const [subsRes, statusRes] = await Promise.all([
-                api.get<Subscription[]>('/subscriptions/'),
-                api.get<SyncStatus[]>('/sync/status')
-            ]);
-            setSubscriptions(subsRes.data);
-            setStatuses(statusRes.data);
+            const statsRes = await api.get<DashboardStats>('/dashboard/stats');
+            setStats(statsRes.data);
         } catch (error) {
-            console.error("Failed to fetch data", error);
+            console.error("Failed to fetch dashboard data", error);
         }
     };
 
@@ -49,213 +39,149 @@ export default function Dashboard() {
         return () => clearInterval(interval);
     }, []);
 
-    const triggerSync = async (subscriptionId: number, type: 'movies' | 'series') => {
-        try {
-            setLoading(true);
-            await api.post(`/sync/${type}/${subscriptionId}`);
-            await fetchData();
-        } catch (error) {
-            console.error(`Failed to trigger ${type} sync`, error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const stopSync = async (subscriptionId: number, type: 'movies' | 'series') => {
-        try {
-            setLoading(true);
-            await api.post(`/sync/stop/${subscriptionId}/${type}`);
-            await fetchData();
-        } catch (error) {
-            console.error(`Failed to stop ${type} sync`, error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'success': return 'text-green-500';
-            case 'failed': return 'text-red-500';
-            case 'running': return 'text-blue-500 animate-pulse';
-            default: return 'text-muted-foreground';
-        }
-    };
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'success': return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-            case 'failed': return <AlertCircle className="w-5 h-5 text-red-500" />;
-            case 'running': return <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />;
-            default: return <div className="w-5 h-5 rounded-full bg-muted" />;
-        }
-    };
-
-    const getStatus = (subscriptionId: number, type: string) => {
-        return statuses.find(s => s.subscription_id === subscriptionId && s.type === type);
-    };
-
     return (
         <div className="space-y-8">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-                <p className="text-muted-foreground">Monitor sync status for all subscriptions</p>
+                <p className="text-muted-foreground">Overview of your Xtream to STRM synchronization.</p>
             </div>
 
-            {subscriptions.length === 0 ? (
+            {/* Statistics Cards */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
-                    <CardContent className="p-8 text-center text-muted-foreground">
-                        No subscriptions configured. Go to Configuration to add subscriptions.
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Content</CardTitle>
+                        <Film className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{stats?.total_content?.total?.toLocaleString() || 0}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {stats?.sources?.total || 0} Sources Configured
+                        </p>
                     </CardContent>
                 </Card>
-            ) : (
-                <div className="space-y-4">
-                    {subscriptions.map(sub => {
-                        const movieStatus = getStatus(sub.id, 'movies');
-                        const seriesStatus = getStatus(sub.id, 'series');
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Movies</CardTitle>
+                        <Film className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{stats?.total_content?.movies?.toLocaleString() || 0}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {stats?.total_content?.total ? ((stats.total_content.movies / stats.total_content.total) * 100).toFixed(1) : 0}% of total
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Series</CardTitle>
+                        <Tv className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{stats?.total_content?.series?.toLocaleString() || 0}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {stats?.total_content?.total ? ((stats.total_content.series / stats.total_content.total) * 100).toFixed(1) : 0}% of total
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
 
-                        return (
-                            <Card key={sub.id}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center justify-between">
-                                        <span>{sub.name}</span>
-                                        {!sub.is_active && (
-                                            <span className="text-sm font-normal text-muted-foreground">(Inactive)</span>
-                                        )}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Movies */}
-                                        <div className="border rounded-lg p-4">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Film className="w-5 h-5 text-muted-foreground" />
-                                                    <span className="font-medium">Movies</span>
-                                                </div>
-                                                {getStatusIcon(movieStatus?.status || 'idle')}
-                                            </div>
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Status:</span>
-                                                    <span className={`font-medium capitalize ${getStatusColor(movieStatus?.status || 'idle')}`}>
-                                                        {movieStatus?.status || 'Idle'}
-                                                    </span>
-                                                </div>
-                                                {movieStatus?.last_sync && (
-                                                    <div className="flex justify-between">
-                                                        <span className="text-muted-foreground">Last Sync:</span>
-                                                        <span>{new Date(movieStatus.last_sync).toLocaleString()}</span>
-                                                    </div>
-                                                )}
-                                                {movieStatus && (
-                                                    <>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Added:</span>
-                                                            <span className="text-green-600">{movieStatus.items_added}</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Deleted:</span>
-                                                            <span className="text-red-600">{movieStatus.items_deleted}</span>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-                                            <div className="mt-4">
-                                                {movieStatus?.status === 'running' ? (
-                                                    <Button
-                                                        onClick={() => stopSync(sub.id, 'movies')}
-                                                        disabled={loading || !sub.is_active}
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        className="w-full"
-                                                    >
-                                                        <StopCircle className="w-4 h-4 mr-2" />
-                                                        Stop Sync
-                                                    </Button>
-                                                ) : (
-                                                    <Button
-                                                        onClick={() => triggerSync(sub.id, 'movies')}
-                                                        disabled={loading || !sub.is_active}
-                                                        size="sm"
-                                                        className="w-full"
-                                                    >
-                                                        <RefreshCw className="w-4 h-4 mr-2" />
-                                                        Sync Now
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
+            {/* Sync Status & Content Distribution */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <Card className="col-span-4">
+                    <CardHeader>
+                        <CardTitle>Sync Status</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-8">
+                            <div className="flex items-center">
+                                <Activity className="mr-2 h-4 w-4 opacity-70" />
+                                <div className="ml-4 space-y-1">
+                                    <p className="text-sm font-medium leading-none">In Progress</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {stats?.sync_status?.in_progress || 0} active sync tasks
+                                    </p>
+                                </div>
+                                <div className="ml-auto font-medium">
+                                    {stats?.sync_status?.in_progress === 0 ? 'Idle' : 'Running'}
+                                </div>
+                            </div>
+                            <div className="flex items-center">
+                                <Activity className="mr-2 h-4 w-4 opacity-70" />
+                                <div className="ml-4 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Success Rate</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Last 24 hours
+                                    </p>
+                                </div>
+                                <div className="ml-auto font-medium text-green-500">
+                                    {stats?.sync_status?.success_rate || 100}%
+                                </div>
+                            </div>
+                            <div className="flex items-center">
+                                <Activity className="mr-2 h-4 w-4 opacity-70" />
+                                <div className="ml-4 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Errors</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Last 24 hours
+                                    </p>
+                                </div>
+                                <div className="ml-auto font-medium text-red-500">
+                                    {stats?.sync_status?.errors_24h || 0}
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="col-span-3">
+                    <CardHeader>
+                        <CardTitle>Content Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-8">
+                            <div className="flex items-center">
+                                <HardDrive className="mr-2 h-4 w-4 opacity-70" />
+                                <div className="ml-4 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Sources</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {stats?.sources?.active || 0} Active / {stats?.sources?.total || 0} Total
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span>Movies</span>
+                                    <span>{stats?.total_content?.movies ? ((stats.total_content.movies / (stats.total_content.total || 1)) * 100).toFixed(0) : 0}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500" style={{ width: `${stats?.total_content?.movies ? ((stats.total_content.movies / (stats.total_content.total || 1)) * 100) : 0}%` }} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span>Series</span>
+                                    <span>{stats?.total_content?.series ? ((stats.total_content.series / (stats.total_content.total || 1)) * 100).toFixed(0) : 0}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-500" style={{ width: `${stats?.total_content?.series ? ((stats.total_content.series / (stats.total_content.total || 1)) * 100) : 0}%` }} />
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
-                                        {/* Series */}
-                                        <div className="border rounded-lg p-4">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Tv className="w-5 h-5 text-muted-foreground" />
-                                                    <span className="font-medium">Series</span>
-                                                </div>
-                                                {getStatusIcon(seriesStatus?.status || 'idle')}
-                                            </div>
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between">
-                                                    <span className="text-muted-foreground">Status:</span>
-                                                    <span className={`font-medium capitalize ${getStatusColor(seriesStatus?.status || 'idle')}`}>
-                                                        {seriesStatus?.status || 'Idle'}
-                                                    </span>
-                                                </div>
-                                                {seriesStatus?.last_sync && (
-                                                    <div className="flex justify-between">
-                                                        <span className="text-muted-foreground">Last Sync:</span>
-                                                        <span>{new Date(seriesStatus.last_sync).toLocaleString()}</span>
-                                                    </div>
-                                                )}
-                                                {seriesStatus && (
-                                                    <>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Added:</span>
-                                                            <span className="text-green-600">{seriesStatus.items_added}</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-muted-foreground">Deleted:</span>
-                                                            <span className="text-red-600">{seriesStatus.items_deleted}</span>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-                                            <div className="mt-4">
-                                                {seriesStatus?.status === 'running' ? (
-                                                    <Button
-                                                        onClick={() => stopSync(sub.id, 'series')}
-                                                        disabled={loading || !sub.is_active}
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        className="w-full"
-                                                    >
-                                                        <StopCircle className="w-4 h-4 mr-2" />
-                                                        Stop Sync
-                                                    </Button>
-                                                ) : (
-                                                    <Button
-                                                        onClick={() => triggerSync(sub.id, 'series')}
-                                                        disabled={loading || !sub.is_active}
-                                                        size="sm"
-                                                        className="w-full"
-                                                    >
-                                                        <RefreshCw className="w-4 h-4 mr-2" />
-                                                        Sync Now
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
-            )}
+            {/* Quick Info */}
+            <div>
+                <h3 className="text-xl font-semibold mb-4">Quick Info</h3>
+                <Card>
+                    <CardContent className="p-6">
+                        <p className="text-muted-foreground">
+                            For detailed subscription management and sync controls, visit the <strong>XtreamTV &gt; Subscriptions</strong> page.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
