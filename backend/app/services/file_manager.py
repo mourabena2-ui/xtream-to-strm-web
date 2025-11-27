@@ -43,7 +43,7 @@ class FileManager:
 
     def generate_movie_nfo(self, movie_data: dict) -> str:
         """Generate NFO file for a movie - TMDB ID only if available, otherwise just the title"""
-        tmdb_id = movie_data.get('tmdb_id', '')
+        tmdb_id = movie_data.get('tmdb', '')  # Xtream API uses 'tmdb' not 'tmdb_id'
         title = movie_data.get('name', 'Unknown')
         
         # Check if TMDB ID is valid (not empty, not null, not 0, not "0")
@@ -148,7 +148,7 @@ class FileManager:
 
     def generate_show_nfo(self, series_data: dict) -> str:
         """Generate NFO file for a TV show - TMDB ID only if available, otherwise just the title"""
-        tmdb_id = series_data.get('tmdb_id', '')
+        tmdb_id = series_data.get('tmdb', '')  # Xtream API uses 'tmdb' not 'tmdb_id'
         title = series_data.get('name', 'Unknown')
         
         # Check if TMDB ID is valid (not empty, not null, not 0, not "0")
