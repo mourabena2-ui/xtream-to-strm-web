@@ -98,17 +98,21 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
             cat_id = movie['category_id']
             tmdb_id = movie.get('tmdb_id')
 
-            # If TMDB ID is missing or invalid, try to fetch detailed info
-            if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
-                try:
-                    detailed_info = await xc.get_vod_info(str(stream_id))
-                    if detailed_info and 'info' in detailed_info:
-                        fetched_tmdb = detailed_info['info'].get('tmdb_id')
-                        if fetched_tmdb:
-                            tmdb_id = fetched_tmdb
-                            movie['tmdb_id'] = tmdb_id # Update movie dict for NFO generation
-                except Exception as e:
-                    logger.warning(f"Failed to fetch detailed info for movie {stream_id}: {e}")
+            # PERFORMANCE OPTIMIZATION: Disabled for initial sync speed
+            # Fetching detailed info for every movie is too slow (2-4s per movie)
+            # NFOs will use metadata directly from get_vod_streams response
+            # If you need TMDB IDs, consider enabling this for incremental updates only
+            #
+            # if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
+            #     try:
+            #         detailed_info = await xc.get_vod_info(str(stream_id))
+            #         if detailed_info and 'info' in detailed_info:
+            #             fetched_tmdb = detailed_info['info'].get('tmdb_id')
+            #             if fetched_tmdb:
+            #                 tmdb_id = fetched_tmdb
+            #                 movie['tmdb_id'] = tmdb_id
+            #     except Exception as e:
+            #         logger.warning(f"Failed to fetch detailed info for movie {stream_id}: {e}")
 
             cat_name = cat_map.get(cat_id, "Uncategorized")
             safe_cat = fm.sanitize_name(cat_name)
@@ -153,17 +157,17 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
             nfo_path = f"{fm.output_dir}/{safe_cat}/{safe_name}.nfo"
             
             if not os.path.exists(nfo_path):
-                # Fetch TMDB ID if missing
-                tmdb_id = movie.get('tmdb_id')
-                if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
-                    try:
-                        detailed_info = await xc.get_vod_info(str(stream_id))
-                        if detailed_info and 'info' in detailed_info:
-                            fetched_tmdb = detailed_info['info'].get('tmdb_id')
-                            if fetched_tmdb:
-                                movie['tmdb_id'] = fetched_tmdb
-                    except Exception:
-                        pass
+                # PERFORMANCE OPTIMIZATION: Disabled - use metadata from cache/list
+                # tmdb_id = movie.get('tmdb_id')
+                # if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
+                #     try:
+                #         detailed_info = await xc.get_vod_info(str(stream_id))
+                #         if detailed_info and 'info' in detailed_info:
+                #             fetched_tmdb = detailed_info['info'].get('tmdb_id')
+                #             if fetched_tmdb:
+                #                 movie['tmdb_id'] = fetched_tmdb
+                #     except Exception:
+                #         pass
 
                 cat_dir = f"{fm.output_dir}/{safe_cat}"
                 fm.ensure_directory(cat_dir)
@@ -270,10 +274,11 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             series_info = info_response.get('info', {})
             episodes_data = info_response.get('episodes', {})
             
-            # Update TMDB ID if available
-            if series_info.get('tmdb_id'):
-                series['tmdb_id'] = series_info['tmdb_id']
-                tmdb_id = series_info['tmdb_id'] # Update local var for cache
+            # PERFORMANCE: Use TMDB ID from get_series() list instead
+            # The series dict already has metadata from the list call
+            # if series_info.get('tmdb_id'):
+            #     series['tmdb_id'] = series_info['tmdb_id']
+            #     tmdb_id = series_info['tmdb_id']
 
             # Always create tvshow.nfo
             nfo_path = f"{series_dir}/tvshow.nfo"
@@ -327,16 +332,16 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             tvshow_nfo_path = f"{series_dir}/tvshow.nfo"
             
             if os.path.exists(series_dir) and not os.path.exists(tvshow_nfo_path):
-                # Fetch TMDB ID if missing
-                tmdb_id = series.get('tmdb_id')
-                if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
-                    try:
-                        info_response = await xc.get_series_info(str(series_id))
-                        series_info = info_response.get('info', {})
-                        if series_info.get('tmdb_id'):
-                            series['tmdb_id'] = series_info['tmdb_id']
-                    except Exception:
-                        pass
+                # PERFORMANCE OPTIMIZATION: Disabled - use metadata from cache/list
+                # tmdb_id = series.get('tmdb_id')
+                # if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
+                #     try:
+                #         info_response = await xc.get_series_info(str(series_id))
+                #         series_info = info_response.get('info', {})
+                #         if series_info.get('tmdb_id'):
+                #             series['tmdb_id'] = series_info['tmdb_id']
+                #     except Exception:
+                #         pass
 
                 await fm.write_nfo(tvshow_nfo_path, fm.generate_show_nfo(series))
                 nfo_created_count += 1
