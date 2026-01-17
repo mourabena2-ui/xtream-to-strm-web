@@ -259,14 +259,13 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
         # Deletions
         for series in to_delete:
             cat_name = cat_map.get(series.category_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
             safe_name = fm.sanitize_name(series.name)
             
-            path = f"{fm.output_dir}/{safe_cat}/{safe_name}"
+            path = f"{fm.output_dir}/{safe_name}"
             if os.path.exists(path):
                 shutil.rmtree(path)
             
-            await fm.delete_directory_if_empty(f"{fm.output_dir}/{safe_cat}")
+            await fm.delete_directory_if_empty(f"{fm.output_dir}")
             db.delete(series)
 
         # Additions/Updates
@@ -277,10 +276,9 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             tmdb_id = series.get('tmdb')  # Xtream API uses 'tmdb' not 'tmdb_id'
 
             cat_name = cat_map.get(cat_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
             safe_name = fm.sanitize_name(name)
             
-            series_dir = f"{fm.output_dir}/{safe_cat}/{safe_name}"
+            series_dir = f"{fm.output_dir}/{safe_name}"
             fm.ensure_directory(series_dir)
             
             # Fetch Episodes and Info
@@ -343,10 +341,9 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             cat_id = series['category_id']
             
             cat_name = cat_map.get(cat_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
             safe_name = fm.sanitize_name(name)
             
-            series_dir = f"{fm.output_dir}/{safe_cat}/{safe_name}"
+            series_dir = f"{fm.output_dir}/{safe_name}"
             tvshow_nfo_path = f"{series_dir}/tvshow.nfo"
             
             if os.path.exists(series_dir) and not os.path.exists(tvshow_nfo_path):
