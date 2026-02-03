@@ -23,7 +23,7 @@ class XtreamClient:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _request(self, action: str, **kwargs) -> Any:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
             params = self._get_params(action, **kwargs)
             try:
                 response = await client.get(self.api_url, params=params)

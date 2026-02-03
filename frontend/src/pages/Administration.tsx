@@ -10,6 +10,8 @@ export default function Administration() {
     const [prefixRegex, setPrefixRegex] = useState('');
     const [formatDate, setFormatDate] = useState(false);
     const [cleanName, setCleanName] = useState(false);
+    const [useSeasonFolders, setUseSeasonFolders] = useState(true);
+    const [includeSeriesName, setIncludeSeriesName] = useState(false);
     const [regexLoading, setRegexLoading] = useState(false);
 
     // Load current settings on mount
@@ -20,6 +22,8 @@ export default function Administration() {
                 setPrefixRegex(response.data.PREFIX_REGEX || '^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\\s*-\\s*)');
                 setFormatDate(response.data.FORMAT_DATE_IN_TITLE === true);
                 setCleanName(response.data.CLEAN_NAME === true);
+                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== 'false'); // Default TRUE if missing
+                setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === 'true'); // Default FALSE
             } catch (error) {
                 console.error('Failed to load settings', error);
             }
@@ -33,7 +37,9 @@ export default function Administration() {
             await api.post('/config', {
                 PREFIX_REGEX: prefixRegex,
                 FORMAT_DATE_IN_TITLE: formatDate,
-                CLEAN_NAME: cleanName
+                CLEAN_NAME: cleanName,
+                SERIES_USE_SEASON_FOLDERS: useSeasonFolders,
+                SERIES_INCLUDE_NAME_IN_FILENAME: includeSeriesName
             });
             alert('NFO settings saved successfully!');
         } catch (error) {
@@ -239,10 +245,141 @@ export default function Administration() {
                             disabled={regexLoading}
                         >
                             <Settings className="w-4 h-4 mr-2" />
-                            Save NFO Settings
+                            Save Settings
                         </Button>
                     </CardContent>
                 </Card>
+
+                {/* Series Formatting Settings */}
+                <Card className="border-purple-200 dark:border-purple-900">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                            <Settings className="w-5 h-5" />
+                            Series Formatting
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex items-start space-x-3">
+                            <input
+                                type="checkbox"
+                                id="useSeasonFolders"
+                                checked={useSeasonFolders}
+                                onChange={(e) => setUseSeasonFolders(e.target.checked)}
+                                className="h-4 w-4 mt-1 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <div>
+                                <label htmlFor="useSeasonFolders" className="text-sm font-medium leading-none cursor-pointer">
+                                    Use Season Folders
+                                </label>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Organize episodes into "Season XX" subfolders (Default: Enabled)
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start space-x-3">
+                            <input
+                                type="checkbox"
+                                id="includeSeriesName"
+                                checked={includeSeriesName}
+                                onChange={(e) => setIncludeSeriesName(e.target.checked)}
+                                className="h-4 w-4 mt-1 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <div>
+                                <label htmlFor="includeSeriesName" className="text-sm font-medium leading-none cursor-pointer">
+                                    Include Series Name in Filename
+                                </label>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Prefix filenames with series name (e.g. "Series - S01E01 - Title.strm")
+                                </p>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="default"
+                            className="w-full bg-purple-600 hover:bg-purple-700"
+                            onClick={saveNfoSettings}
+                            disabled={regexLoading}
+                        >
+                            <Settings className="w-4 h-4 mr-2" />
+                            Save Series Settings
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Cache Management */}
+            <div>
+                <h3 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Cache Management</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="border-yellow-200 dark:border-yellow-900">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                                <Database className="w-5 h-5" />
+                                Clear Movie Cache
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Force metadata refresh for all movies on next sync. Does not delete files.
+                            </p>
+                            <Button
+                                variant="outline"
+                                className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-800 dark:text-yellow-400 dark:hover:bg-yellow-950"
+                                onClick={async () => {
+                                    if (!confirm('Clear movie cache? Next sync will re-fetch metadata.')) return;
+                                    setLoading(true);
+                                    try {
+                                        await api.post('/admin/clear-movie-cache');
+                                        alert('Movie cache cleared successfully.');
+                                    } catch (error) {
+                                        console.error('Failed to clear movie cache', error);
+                                        alert('Failed to clear movie cache.');
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                disabled={loading}
+                            >
+                                Clear Movie Cache
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-yellow-200 dark:border-yellow-900">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                                <Database className="w-5 h-5" />
+                                Clear Series Cache
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Force metadata refresh for all series/episodes on next sync. Does not delete files.
+                            </p>
+                            <Button
+                                variant="outline"
+                                className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-800 dark:text-yellow-400 dark:hover:bg-yellow-950"
+                                onClick={async () => {
+                                    if (!confirm('Clear series cache? Next sync will re-fetch metadata.')) return;
+                                    setLoading(true);
+                                    try {
+                                        await api.post('/admin/clear-series-cache');
+                                        alert('Series cache cleared successfully.');
+                                    } catch (error) {
+                                        console.error('Failed to clear series cache', error);
+                                        alert('Failed to clear series cache.');
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                disabled={loading}
+                            >
+                                Clear Series Cache
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );

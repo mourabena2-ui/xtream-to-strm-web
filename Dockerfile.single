@@ -30,8 +30,20 @@ COPY backend/ .
 COPY --from=frontend-build /app/dist /app/static
 
 # Copy startup script  
+# Copy startup script  
 COPY docker_start.sh /app/start.sh
 RUN chmod +x /app/start.sh
+
+# Create non-root user
+RUN addgroup --system appgroup && adduser --system --group appuser
+
+# Create necessary directories and set permissions
+RUN mkdir -p /app/output /app/db && \
+    chown -R appuser:appgroup /app && \
+    chmod -R 755 /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8000

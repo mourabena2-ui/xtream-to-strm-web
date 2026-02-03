@@ -2,7 +2,8 @@
 set -e
 
 # Start Redis server in the background
-redis-server --daemonize yes
+# Start Redis server in the background
+redis-server --dir /app --dbfilename dump.rdb --daemonize yes --pidfile /app/redis.pid --logfile /app/redis.log
 
 # Wait for Redis to be ready
 sleep 2

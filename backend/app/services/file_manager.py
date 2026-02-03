@@ -42,49 +42,26 @@ class FileManager:
             pass # Directory not empty
 
     def generate_movie_nfo(self, movie_data: dict, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> str:
-        """Generate NFO file for a movie - TMDB ID only if available, otherwise just the title"""
-        tmdb_id = movie_data.get('tmdb', '')  # Xtream API uses 'tmdb' not 'tmdb_id'
+        """Generate NFO file for a movie with comprehensive metadata"""
+        tmdb_id = movie_data.get('tmdb') or movie_data.get('tmdb_id', '')
         # Use o_name as title if available, otherwise name
         title = movie_data.get('o_name') or movie_data.get('name', 'Unknown')
         
-        # Strip language prefix if present (e.g. "FR - ", "TN - ", "ARA - ")
-        # Use provided regex or default
+        # Strip language prefix
         regex = prefix_regex if prefix_regex else r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)'
         try:
             title = re.sub(regex, '', title)
         except re.error:
-            # Fallback to default if custom regex is invalid
             title = re.sub(r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)', '', title)
             
-        # Format date at end: "Name_2024" -> "Name (2024)"
+        # Format date at end
         if format_date:
             title = re.sub(r'[_\s](\d{4})$', r' (\1)', title)
             
-        # Clean name: replace underscores with spaces
+        # Clean name
         if clean_name:
             title = title.replace('_', ' ')
         
-        # Check if TMDB ID is valid (not empty, not null, not 0, not "0")
-        has_valid_tmdb = False
-        if tmdb_id:
-            tmdb_str = str(tmdb_id).strip()
-            if tmdb_str and tmdb_str.lower() not in ['null', 'none', '0', '']:
-                try:
-                    # Verify it's a valid number and not zero
-                    if int(tmdb_str) > 0:
-                        has_valid_tmdb = True
-                except (ValueError, TypeError):
-                    pass
-        
-        # If we have a valid TMDB ID, use minimal NFO with just the ID
-        if has_valid_tmdb:
-            return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<movie>
-  <tmdbid>{tmdb_id}</tmdbid>
-  <uniqueid type="tmdb" default="true">{tmdb_id}</uniqueid>
-</movie>"""
-        
-        # Otherwise, use all available Xtream metadata
         plot = movie_data.get('plot') or movie_data.get('description', '')
         year = movie_data.get('year') or movie_data.get('releasedate', '')
         rating = movie_data.get('rating') or movie_data.get('rating_5based', '')
@@ -99,37 +76,50 @@ class FileManager:
         backdrop_path = movie_data.get('backdrop_path', [])
         fanart = backdrop_path[0] if isinstance(backdrop_path, list) and backdrop_path else ''
         
-        # Convert rating from 5-based to 10-based if needed
-        if rating and str(rating_5based := movie_data.get('rating_5based')):
-            try:
-                rating = float(rating_5based) * 2
-            except (ValueError, TypeError):
-                pass
-        
         nfo = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<movie>\n'
         
-        # Essential fields
         nfo += f'  <title>{self._escape_xml(title)}</title>\n'
+        nfo += f'  <originaltitle>{self._escape_xml(movie_data.get("o_name", ""))}</originaltitle>\n'
+        
+        # TMDB / IMDB IDs
+        if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
+            nfo += f'  <tmdbid>{tmdb_id}</tmdbid>\n'
+            nfo += f'  <uniqueid type="tmdb" default="true">{tmdb_id}</uniqueid>\n'
+        
+        # Try to find IMDB ID in info if available
+        # (This usually requires detailed info fetch)
         
         if plot:
             nfo += f'  <plot>{self._escape_xml(plot)}</plot>\n'
             nfo += f'  <outline>{self._escape_xml(plot[:200])}</outline>\n'
         
         if year:
-            # Extract year if it's a full date
             year_str = str(year)[:4] if len(str(year)) >= 4 else str(year)
             nfo += f'  <year>{year_str}</year>\n'
+            nfo += f'  <premiered>{year_str}-01-01</premiered>\n'
         
+        # Ratings
         if rating:
             try:
-                nfo += f'  <rating>{float(rating)}</rating>\n'
+                r_val = float(rating)
+                # If it was 5-based, convert
+                if movie_data.get('rating_5based'):
+                    r_val *= 2
+                
+                nfo += '  <ratings>\n'
+                nfo += f'    <rating name="tmdb" default="true"><value>{r_val:.1f}</value></rating>\n'
+                nfo += '  </ratings>\n'
+                nfo += f'  <userrating>{int(round(r_val))}</userrating>\n'
             except (ValueError, TypeError):
                 pass
         
         # Genre
         if genre:
-            for g in str(genre).split(','):
-                nfo += f'  <genre>{self._escape_xml(g.strip())}</genre>\n'
+            # Split by comma or slash
+            for g in re.split(r'[,/]', str(genre)):
+                g_str = g.strip()
+                if g_str:
+                    nfo += f'  <genre>{self._escape_xml(g_str)}</genre>\n'
         
         # Director
         if director:
@@ -142,10 +132,10 @@ class FileManager:
                 if actor_name:
                     nfo += f'  <actor><name>{self._escape_xml(actor_name)}</name></actor>\n'
         
-        # Duration (in minutes)
+        # Duration
         if duration:
             try:
-                # Duration might be in format "HH:MM:SS" or just minutes
+                total_mins = 0
                 if ':' in str(duration):
                     parts = str(duration).split(':')
                     total_mins = int(parts[0]) * 60 + int(parts[1])
@@ -154,12 +144,32 @@ class FileManager:
                 nfo += f'  <runtime>{total_mins}</runtime>\n'
             except (ValueError, TypeError, IndexError):
                 pass
+
+        # Stream Details (Video/Audio)
+        # Usually from detailed info 'info' dict
+        info = movie_data.get('info', {})
+        nfo += '  <fileinfo>\n    <streamdetails>\n'
         
-        # Trailer
+        # Video
+        nfo += '      <video>\n'
+        nfo += f'        <codec>{self._escape_xml(movie_data.get("container_extension", ""))}</codec>\n'
+        if info.get('videoing'): # Check if present
+             pass # Use info from API if mapped
+        if info.get('bitrate'):
+             nfo += f'        <bitrate>{info.get("bitrate")}</bitrate>\n'
+        nfo += '      </video>\n'
+        
+        # Audio
+        if info.get('audio'):
+             nfo += '      <audio>\n'
+             nfo += f'        <codec>{self._escape_xml(info.get("audio", {}).get("codec", ""))}</codec>\n'
+             nfo += '      </audio>\n'
+             
+        nfo += '    </streamdetails>\n  </fileinfo>\n'
+
         if trailer:
             nfo += f'  <trailer>plugin://plugin.video.youtube/?action=play_video&amp;videoid={trailer}</trailer>\n'
         
-        # Artwork
         if cover:
             nfo += f'  <thumb>{cover}</thumb>\n'
         
@@ -167,55 +177,32 @@ class FileManager:
             nfo += f'  <fanart><thumb>{fanart}</thumb></fanart>\n'
         elif cover:
             nfo += f'  <fanart><thumb>{cover}</thumb></fanart>\n'
+            
+        # MPAA
+        mpaa = movie_data.get('mpaa') or info.get('mpaa')
+        if mpaa:
+             nfo += f'  <mpaa>{self._escape_xml(mpaa)}</mpaa>\n'
         
         nfo += '</movie>'
         return nfo
 
 
     def generate_show_nfo(self, series_data: dict, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> str:
-        """Generate NFO file for a TV show - TMDB ID only if available, otherwise just the title"""
-        tmdb_id = series_data.get('tmdb', '')  # Xtream API uses 'tmdb' not 'tmdb_id'
-        # Use o_name as title if available, otherwise name
+        """Generate NFO file for a TV show"""
+        tmdb_id = series_data.get('tmdb') or series_data.get('tmdb_id', '')
         title = series_data.get('o_name') or series_data.get('name', 'Unknown')
 
-        # Strip language prefix if present (e.g. "FR - ", "TN - ", "ARA - ")
-        # Use provided regex or default
         regex = prefix_regex if prefix_regex else r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)'
         try:
             title = re.sub(regex, '', title)
         except re.error:
-            # Fallback to default if custom regex is invalid
             title = re.sub(r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)', '', title)
             
-        # Format date at end: "Name_2024" -> "Name (2024)"
         if format_date:
             title = re.sub(r'[_\s](\d{4})$', r' (\1)', title)
-            
-        # Clean name: replace underscores with spaces
         if clean_name:
             title = title.replace('_', ' ')
         
-        # Check if TMDB ID is valid (not empty, not null, not 0, not "0")
-        has_valid_tmdb = False
-        if tmdb_id:
-            tmdb_str = str(tmdb_id).strip()
-            if tmdb_str and tmdb_str.lower() not in ['null', 'none', '0', '']:
-                try:
-                    # Verify it's a valid number and not zero
-                    if int(tmdb_str) > 0:
-                        has_valid_tmdb = True
-                except (ValueError, TypeError):
-                    pass
-        
-        # If we have a valid TMDB ID, use minimal NFO with just the ID
-        if has_valid_tmdb:
-            return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<tvshow>
-  <tmdbid>{tmdb_id}</tmdbid>
-  <uniqueid type="tmdb" default="true">{tmdb_id}</uniqueid>
-</tvshow>"""
-        
-        # Otherwise, use all available Xtream metadata
         plot = series_data.get('plot') or series_data.get('description', '')
         year = series_data.get('year') or series_data.get('releaseDate', '')
         rating = series_data.get('rating') or series_data.get('rating_5based', '')
@@ -224,38 +211,43 @@ class FileManager:
         director = series_data.get('director', '')
         cover = series_data.get('cover') or series_data.get('cover_big') or series_data.get('stream_icon') or series_data.get('backdrop_path_original', '')
         
-        # Handle backdrop/fanart
         backdrop_path = series_data.get('backdrop_path', [])
         fanart = backdrop_path[0] if isinstance(backdrop_path, list) and backdrop_path else ''
-        
-        # Convert rating from 5-based to 10-based if needed
-        if rating and str(rating_5based := series_data.get('rating_5based')):
-            try:
-                rating = float(rating_5based) * 2
-            except (ValueError, TypeError):
-                pass
         
         nfo = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<tvshow>\n'
         
         nfo += f'  <title>{self._escape_xml(title)}</title>\n'
         
+        if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
+             nfo += f'  <tmdbid>{tmdb_id}</tmdbid>\n'
+             nfo += f'  <uniqueid type="tmdb" default="true">{tmdb_id}</uniqueid>\n'
+
         if plot:
             nfo += f'  <plot>{self._escape_xml(plot)}</plot>\n'
         
         if year:
             year_str = str(year)[:4] if len(str(year)) >= 4 else str(year)
             nfo += f'  <year>{year_str}</year>\n'
-            nfo += f'  <premiered>{year_str}</premiered>\n'
+            nfo += f'  <premiered>{year_str}-01-01</premiered>\n'
         
         if rating:
             try:
-                nfo += f'  <rating>{float(rating)}</rating>\n'
+                r_val = float(rating)
+                if series_data.get('rating_5based'):
+                    r_val *= 2
+                
+                nfo += '  <ratings>\n'
+                nfo += f'    <rating name="tmdb" default="true"><value>{r_val:.1f}</value></rating>\n'
+                nfo += '  </ratings>\n'
+                nfo += f'  <userrating>{int(round(r_val))}</userrating>\n'
             except (ValueError, TypeError):
                 pass
         
         if genre:
-            for g in str(genre).split(','):
-                nfo += f'  <genre>{self._escape_xml(g.strip())}</genre>\n'
+            for g in re.split(r'[,/]', str(genre)):
+                g_str = g.strip()
+                if g_str:
+                    nfo += f'  <genre>{self._escape_xml(g_str)}</genre>\n'
         
         if director:
             nfo += f'  <director>{self._escape_xml(director)}</director>\n'
@@ -275,6 +267,56 @@ class FileManager:
             nfo += f'  <fanart><thumb>{cover}</thumb></fanart>\n'
         
         nfo += '</tvshow>'
+        return nfo
+
+    def generate_episode_nfo(self, episode_data: dict, series_name: str, season_num: int, episode_num: int) -> str:
+        """Generate NFO file for an episode"""
+        title = episode_data.get('title', '')
+        if not title:
+            title = f"Episode {episode_num}"
+            
+        plot = episode_data.get('info', {}).get('plot') or episode_data.get('plot', '')
+        duration = episode_data.get('info', {}).get('duration') or episode_data.get('duration', '')
+        
+        nfo = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<episodedetails>\n'
+        nfo += f'  <title>{self._escape_xml(title)}</title>\n'
+        nfo += f'  <showtitle>{self._escape_xml(series_name)}</showtitle>\n'
+        nfo += f'  <season>{season_num}</season>\n'
+        nfo += f'  <episode>{episode_num}</episode>\n'
+        
+        if plot:
+            nfo += f'  <plot>{self._escape_xml(plot)}</plot>\n'
+            
+        # Parse duration "HH:MM:SS" -> minutes
+        if duration:
+             try:
+                total_mins = 0
+                if ':' in str(duration):
+                    parts = str(duration).split(':')
+                    if len(parts) == 3:
+                        total_mins = int(parts[0]) * 60 + int(parts[1])
+                    elif len(parts) == 2:
+                        total_mins = int(parts[0])
+                elif str(duration).isdigit():
+                     total_mins = int(duration)
+                
+                if total_mins > 0:
+                    nfo += f'  <runtime>{total_mins}</runtime>\n'
+             except (ValueError, TypeError):
+                 pass
+
+        # Stream Details
+        # Usually from detailed info 'info' dict of the episode
+        info = episode_data.get('info', {})
+        nfo += '  <fileinfo>\n    <streamdetails>\n'
+        nfo += '      <video>\n'
+        nfo += f'        <codec>{self._escape_xml(episode_data.get("container_extension", ""))}</codec>\n'
+        if info.get('bitrate'):
+             nfo += f'        <bitrate>{info.get("bitrate")}</bitrate>\n'
+        nfo += '      </video>\n'
+        nfo += '    </streamdetails>\n  </fileinfo>\n'
+
+        nfo += '</episodedetails>'
         return nfo
 
 

@@ -33,6 +33,10 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
         updates["FORMAT_DATE_IN_TITLE"] = str(config.FORMAT_DATE_IN_TITLE).lower()
     if config.CLEAN_NAME is not None:
         updates["CLEAN_NAME"] = str(config.CLEAN_NAME).lower()
+    if config.SERIES_USE_SEASON_FOLDERS is not None:
+        updates["SERIES_USE_SEASON_FOLDERS"] = str(config.SERIES_USE_SEASON_FOLDERS).lower()
+    if config.SERIES_INCLUDE_NAME_IN_FILENAME is not None:
+        updates["SERIES_INCLUDE_NAME_IN_FILENAME"] = str(config.SERIES_INCLUDE_NAME_IN_FILENAME).lower()
     
     for key, value in updates.items():
         setting = db.query(SettingsModel).filter(SettingsModel.key == key).first()

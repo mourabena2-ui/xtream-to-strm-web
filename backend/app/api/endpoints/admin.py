@@ -89,29 +89,57 @@ def delete_generated_files(db: Session = Depends(get_db)):
         return {"message": f"Error deleting files: {str(e)}", "success": False}
 
 
+@router.post("/clear-movie-cache")
+def clear_movie_cache(db: Session = Depends(get_db)):
+    """Clear only movie cache"""
+    try:
+        db.query(MovieCache).delete()
+        db.commit()
+        return {"message": "Movie cache cleared successfully", "success": True}
+    except Exception as e:
+        db.rollback()
+        return {"message": f"Error clearing movie cache: {str(e)}", "success": False}
+
+
+@router.post("/clear-series-cache")
+def clear_series_cache(db: Session = Depends(get_db)):
+    """Clear only series cache"""
+    try:
+        db.query(SeriesCache).delete()
+        db.query(EpisodeCache).delete()
+        db.commit()
+        return {"message": "Series cache cleared successfully", "success": True}
+    except Exception as e:
+        db.rollback()
+        return {"message": f"Error clearing series cache: {str(e)}", "success": False}
+
+
 @router.post("/reset-database")
 def reset_database(db: Session = Depends(get_db)):
-    """Clear all data from database tables"""
+    """Clear all data from database tables BUT preserve configuration"""
     try:
-        # Delete all records from each table in the correct order (dependencies first)
+        # Delete only cache and status tables
         db.query(ScheduleExecution).delete()
-        db.query(Schedule).delete()
         db.query(EpisodeCache).delete()
         db.query(SeriesCache).delete()
         db.query(MovieCache).delete()
-        db.query(SelectedCategory).delete()
         db.query(SyncState).delete()
-        db.query(Subscription).delete()
         
-        # Delete M3U related tables
-        db.query(M3USelection).delete()
+        # We DO NOT delete:
+        # - Subscription (User config)
+        # - SelectedCategory (User preferences)
+        # - Schedule (User config)
+        # - SettingsModel (App config)
+        # - M3USource (User config)
+        # - M3USelection (User preferences)
+        
+        # Clear M3U Cache/Entries only
         db.query(M3UEntry).delete()
-        db.query(M3USource).delete()
         
         db.commit()
         
         return {
-            "message": "Database reset successfully",
+            "message": "Database cache reset successfully (Configuration preserved)",
             "success": True
         }
     except Exception as e:

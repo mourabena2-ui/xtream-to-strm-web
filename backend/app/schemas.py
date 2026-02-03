@@ -12,6 +12,8 @@ class ConfigUpdate(BaseModel):
     PREFIX_REGEX: Optional[str] = None
     FORMAT_DATE_IN_TITLE: Optional[bool] = None
     CLEAN_NAME: Optional[bool] = None
+    SERIES_USE_SEASON_FOLDERS: Optional[bool] = None
+    SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
 
 class ConfigResponse(BaseModel):
     XC_URL: Optional[str] = None
@@ -23,6 +25,8 @@ class ConfigResponse(BaseModel):
     PREFIX_REGEX: Optional[str] = None
     FORMAT_DATE_IN_TITLE: Optional[bool] = None
     CLEAN_NAME: Optional[bool] = None
+    SERIES_USE_SEASON_FOLDERS: Optional[bool] = None
+    SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
 
 class SyncStatusResponse(BaseModel):
     id: Optional[int] = None

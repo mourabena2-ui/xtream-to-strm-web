@@ -10,7 +10,7 @@ Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 
@@ -29,13 +29,18 @@ Built with modern technologies, it provides an intuitive interface for managing 
 - **M3U Playlists**: Import from URLs or file uploads with group-based selection
 
 ### 🎯 Smart Synchronization
+- **Parallel Fetching**: High-performance sync with concurrent metadata fetching (async/await)
 - **Selective Sync**: Choose specific categories or groups to synchronize
 - **Incremental Updates**: Only sync what's changed since last update
 - **Dual Control**: Separate sync for Movies and Series
+- **Robustness**: Redirect support and improved error handling for Xtream providers
 
 ### 📋 Rich Metadata
 - **NFO Generation**: Detailed metadata files in Jellyfin format
 - **TMDB Integration**: Automatic movie/series information enrichment
+- **Smart Folder Structure**: 
+  - Movies: `Movie Name {tmdb-ID}` folder support
+  - Series: Optional `Season XX` subfolders
 - **Configurable Formatting**: Title prefix cleaning, date formatting, and name normalization
 
 ### 🎨 Modern Interface
@@ -158,7 +163,15 @@ output/
 
 ## 📝 Version History
 
-### v2.5.0 (Latest)
+### v2.6.0 (Latest)
+- ✨ **Performance**: Parallel fetching engine (significant sync speedup)
+- ✨ **Metadata**: TMDB ID folder support `Movie {tmdb-ID}`
+- ✨ **Series**: Configurable Season folders & Filename formatting
+- 🔒 **Security**: Non-root container user (`appuser`)
+- 🛠️ **Admin**: New Cache Clearing tools & Smart Database Reset
+- 🐞 Fixed redirect handling for unstable IPTV providers
+
+### v2.5.0
 - ✨ Enhanced NFO title formatting options
 - ✨ Configurable regex for prefix stripping
 - ✨ Date formatting at end of titles

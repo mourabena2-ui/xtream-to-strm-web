@@ -87,103 +87,123 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
             cat_name = cat_map.get(movie.category_id, "Uncategorized")
             safe_cat = fm.sanitize_name(cat_name)
             safe_name = fm.sanitize_name(movie.name)
+            tmdb_id = movie.tmdb_id
+
+            # Old flat or new folder structure? Try both removals
             
-            path = f"{fm.output_dir}/{safe_cat}/{safe_name}.strm"
-            nfo_path = f"{fm.output_dir}/{safe_cat}/{safe_name}.nfo"
+            # 1. New Structure: Category/MovieName {tmdb-ID}/
+            if tmdb_id:
+                 folder_name = f"{safe_name} {{tmdb-{tmdb_id}}}"
+                 movie_dir = f"{fm.output_dir}/{safe_cat}/{folder_name}"
+                 if os.path.exists(movie_dir):
+                     shutil.rmtree(movie_dir)
             
-            await fm.delete_file(path)
-            await fm.delete_file(nfo_path)
+            # 2. Old Structure: Category/MovieName.strm
+            # Also clean up old files if they exist (migration or fallback)
+            old_path = f"{fm.output_dir}/{safe_cat}/{safe_name}.strm"
+            old_nfo = f"{fm.output_dir}/{safe_cat}/{safe_name}.nfo"
+            await fm.delete_file(old_path)
+            await fm.delete_file(old_nfo)
+
             await fm.delete_directory_if_empty(f"{fm.output_dir}/{safe_cat}")
             
             db.delete(movie)
         
-        # Process Additions/Updates
-        for movie in to_add_update:
-            stream_id = int(movie['stream_id'])
-            name = movie['name']
-            ext = movie['container_extension']
-            cat_id = movie['category_id']
-            tmdb_id = movie.get('tmdb')  # Xtream API uses 'tmdb' not 'tmdb_id'
+        # Process Additions/Updates with Parallel Fetching
+        batch_size = 10 # Parallel requests
+        semaphore = asyncio.Semaphore(batch_size)
 
-            # PERFORMANCE OPTIMIZATION: Disabled for initial sync speed
-            # Fetching detailed info for every movie is too slow (2-4s per movie)
-            # NFOs will use metadata directly from get_vod_streams response
-            # If you need TMDB IDs, consider enabling this for incremental updates only
-            #
-            # if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
-            #     try:
-            #         detailed_info = await xc.get_vod_info(str(stream_id))
-            #         if detailed_info and 'info' in detailed_info:
-            #             fetched_tmdb = detailed_info['info'].get('tmdb_id')
-            #             if fetched_tmdb:
-            #                 tmdb_id = fetched_tmdb
-            #                 movie['tmdb_id'] = tmdb_id
-            #     except Exception as e:
-            #         logger.warning(f"Failed to fetch detailed info for movie {stream_id}: {e}")
+        async def process_single_movie(movie):
+            async with semaphore:
+                try:
+                    stream_id = int(movie['stream_id'])
+                    name = movie['name']
+                    ext = movie['container_extension']
+                    cat_id = movie['category_id']
+                    tmdb_id = movie.get('tmdb')
 
-            cat_name = cat_map.get(cat_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
-            safe_name = fm.sanitize_name(name)
-            
-            cat_dir = f"{fm.output_dir}/{safe_cat}"
-            fm.ensure_directory(cat_dir)
-            
-            strm_path = f"{cat_dir}/{safe_name}.strm"
-            url = xc.get_stream_url("movie", str(stream_id), ext)
-            
-            await fm.write_strm(strm_path, url)
-            
-            # Always create NFO file with all available metadata
-            nfo_path = f"{cat_dir}/{safe_name}.nfo"
-            nfo_content = fm.generate_movie_nfo(movie, prefix_regex, format_date, clean_name)
-            await fm.write_nfo(nfo_path, nfo_content)
+                    # Fetch detailed info for Metadata
+                    try:
+                        detailed_info = await xc.get_vod_info(str(stream_id))
+                        if detailed_info and 'info' in detailed_info:
+                            movie['info'] = detailed_info['info'] # Inject info for NFO generator
+                            # Update TMDB if found
+                            if detailed_info['info'].get('tmdb_id'):
+                                tmdb_id = detailed_info['info'].get('tmdb_id')
+                                movie['tmdb'] = tmdb_id # Update for object
+                    except Exception as e:
+                        # logger.warning(f"Failed to fetch info for movie {stream_id}: {e}")
+                        pass
 
-            # Update Cache
-            cached = cached_movies.get(stream_id)
-            if not cached:
-                cached = MovieCache(subscription_id=subscription_id, stream_id=stream_id)
-                db.add(cached)
-            
-            cached.name = name
-            cached.category_id = cat_id
-            cached.container_extension = ext
-            cached.tmdb_id = str(tmdb_id) if tmdb_id else None
+                    cat_name = cat_map.get(cat_id, "Uncategorized")
+                    safe_cat = fm.sanitize_name(cat_name)
+                    safe_name = fm.sanitize_name(name)
+                    
+                    cat_dir = f"{fm.output_dir}/{safe_cat}"
+                    fm.ensure_directory(cat_dir)
+                    
+                    # Folder Structure Logic
+                    if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
+                         folder_name = f"{safe_name} {{tmdb-{tmdb_id}}}"
+                         movie_target_dir = f"{cat_dir}/{folder_name}"
+                         fm.ensure_directory(movie_target_dir)
+                         
+                         strm_path = f"{movie_target_dir}/{folder_name}.strm"
+                         nfo_path = f"{movie_target_dir}/{folder_name}.nfo"
+                    else:
+                         # Fallback to flat structure if no TMDB ID
+                         strm_path = f"{cat_dir}/{safe_name}.strm"
+                         nfo_path = f"{cat_dir}/{safe_name}.nfo"
+                    
+                    url = xc.get_stream_url("movie", str(stream_id), ext)
+                    
+                    await fm.write_strm(strm_path, url)
+                    
+                    nfo_content = fm.generate_movie_nfo(movie, prefix_regex, format_date, clean_name)
+                    await fm.write_nfo(nfo_path, nfo_content)
 
-        # Check for missing NFO files
-        logger.info(f"Checking for missing NFO files across {len(all_movies)} movies...")
-        nfo_created_count = 0
-        for movie in all_movies:
-            stream_id = int(movie['stream_id'])
-            name = movie['name']
-            cat_id = movie['category_id']
-            
-            cat_name = cat_map.get(cat_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
-            safe_name = fm.sanitize_name(name)
-            
-            nfo_path = f"{fm.output_dir}/{safe_cat}/{safe_name}.nfo"
-            
-            if not os.path.exists(nfo_path):
-                # PERFORMANCE OPTIMIZATION: Disabled - use metadata from cache/list
-                # tmdb_id = movie.get('tmdb_id')
-                # if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
-                #     try:
-                #         detailed_info = await xc.get_vod_info(str(stream_id))
-                #         if detailed_info and 'info' in detailed_info:
-                #             fetched_tmdb = detailed_info['info'].get('tmdb_id')
-                #             if fetched_tmdb:
-                #                 movie['tmdb_id'] = fetched_tmdb
-                #     except Exception:
-                #         pass
+                    # Update Cache
+                    # We need to lock DB access or handle it after gather?
+                    # Ideally accumulate results and bulk update, but for safety lets return data
+                    return {
+                        'action': 'update_cache',
+                        'data': {
+                            'stream_id': stream_id,
+                            'name': name,
+                            'category_id': cat_id,
+                            'container_extension': ext,
+                            'tmdb_id': str(tmdb_id) if tmdb_id else None
+                        }
+                    }
 
-                cat_dir = f"{fm.output_dir}/{safe_cat}"
-                fm.ensure_directory(cat_dir)
-                nfo_content = fm.generate_movie_nfo(movie, prefix_regex, format_date, clean_name)
-                await fm.write_nfo(nfo_path, nfo_content)
-                nfo_created_count += 1
+                except Exception as e:
+                    logger.error(f"Error processing movie {movie.get('name')}: {e}")
+                    return None
+
+        # Execute in chunks to avoid memory explosion if list is huge
+        # But for 10 concurrent, direct gather is fine usually.
+        # Let's process in batches of 50 to update DB incrementally
+        total_processed = 0
+        chunk_size = 50
         
-        if nfo_created_count > 0:
-            logger.info(f"Created {nfo_created_count} missing NFO files")
+        for i in range(0, len(to_add_update), chunk_size):
+            chunk = to_add_update[i:i + chunk_size]
+            results = await asyncio.gather(*[process_single_movie(m) for m in chunk])
+            
+            for res in results:
+                if res and res['action'] == 'update_cache':
+                    d = res['data']
+                    cached = cached_movies.get(d['stream_id'])
+                    if not cached:
+                        cached = MovieCache(subscription_id=subscription_id, stream_id=d['stream_id'])
+                        db.add(cached)
+                    
+                    cached.name = d['name']
+                    cached.category_id = d['category_id']
+                    cached.container_extension = d['container_extension']
+                    cached.tmdb_id = d['tmdb_id']
+            
+            db.commit() # Commit every chunk
 
         sync_state.items_added = len(to_add_update)
         sync_state.items_deleted = len(to_delete)
@@ -200,10 +220,15 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
 async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscription_id: int):
     # Get settings
     from app.models.settings import SettingsModel
-    settings = {s.key: s.value for s in db.query(SettingsModel).all()}
+    settings_rows = db.query(SettingsModel).all()
+    settings = {s.key: s.value for s in settings_rows}
+    
     prefix_regex = settings.get("PREFIX_REGEX")
     format_date = settings.get("FORMAT_DATE_IN_TITLE") == "true"
     clean_name = settings.get("CLEAN_NAME") == "true"
+    
+    use_season_folders = settings.get("SERIES_USE_SEASON_FOLDERS", "true") == "true"
+    include_series_name = settings.get("SERIES_INCLUDE_NAME_IN_FILENAME", "false") == "true"
 
     # Update status
     sync_state = db.query(SyncState).filter(
@@ -262,110 +287,142 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             safe_cat = fm.sanitize_name(cat_name)
             safe_name = fm.sanitize_name(series.name)
             
-            path = f"{fm.output_dir}/{safe_cat}/{safe_name}"
-            if os.path.exists(path):
-                shutil.rmtree(path)
+            # Check for TMDB folder if applicable
+            tmdb_id = series.tmdb_id
+            potential_paths = [
+                 f"{fm.output_dir}/{safe_cat}/{safe_name}",
+                 f"{fm.output_dir}/{safe_cat}/{safe_name} {{tmdb-{tmdb_id}}}" if tmdb_id else None
+            ]
+
+            for path in potential_paths:
+                if path and os.path.exists(path):
+                    shutil.rmtree(path)
             
             await fm.delete_directory_if_empty(f"{fm.output_dir}/{safe_cat}")
             db.delete(series)
 
-        # Additions/Updates
-        for series in to_add_update:
-            series_id = int(series['series_id'])
-            name = series['name']
-            cat_id = series['category_id']
-            tmdb_id = series.get('tmdb')  # Xtream API uses 'tmdb' not 'tmdb_id'
+        # Process Additions/Updates Parallel
+        batch_size = 5 # Series sync is heavier (many episodes), limit concurrency
+        semaphore = asyncio.Semaphore(batch_size)
 
-            cat_name = cat_map.get(cat_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
-            safe_name = fm.sanitize_name(name)
-            
-            series_dir = f"{fm.output_dir}/{safe_cat}/{safe_name}"
-            fm.ensure_directory(series_dir)
-            
-            # Fetch Episodes and Info
-            info_response = await xc.get_series_info(str(series_id))
-            series_info = info_response.get('info', {})
-            episodes_data = info_response.get('episodes', {})
-            
-            # Fix: Handle case where API returns empty list [] instead of dict {}
-            if isinstance(episodes_data, list):
-                episodes_data = {}
-            
-            # PERFORMANCE: Use TMDB ID from get_series() list instead
-            # The series dict already has metadata from the list call
-            # if series_info.get('tmdb_id'):
-            #     series['tmdb_id'] = series_info['tmdb_id']
-            #     tmdb_id = series_info['tmdb_id']
+        async def process_single_series(series):
+            async with semaphore:
+                try:
+                    series_id = int(series['series_id'])
+                    name = series['name']
+                    cat_id = series['category_id']
+                    tmdb_id = series.get('tmdb')
 
-            # Always create tvshow.nfo
-            nfo_path = f"{series_dir}/tvshow.nfo"
-            await fm.write_nfo(nfo_path, fm.generate_show_nfo(series, prefix_regex, format_date, clean_name))
-            
-            for season_key, episodes in episodes_data.items():
-                season_num = int(season_key)
-                season_dir = f"{series_dir}/Season {season_num}"
-                fm.ensure_directory(season_dir)
-                
-                for ep in episodes:
-                    ep_num = int(ep['episode_num'])
-                    ep_id = ep['id']
-                    container = ep['container_extension']
-                    title = ep.get('title', '')
+                    # Fetch Episodes and Info
+                    info_response = await xc.get_series_info(str(series_id))
+                    series_info = info_response.get('info', {})
+                    episodes_data = info_response.get('episodes', {})
                     
-                    formatted_ep = f"S{season_num:02d}E{ep_num:02d}"
-                    if title:
-                        safe_title = fm.sanitize_name(title)
-                        filename = f"{formatted_ep} - {safe_title}"
-                    else:
-                        filename = formatted_ep
+                    if isinstance(episodes_data, list):
+                        episodes_data = {}
                     
-                    strm_path = f"{season_dir}/{filename}.strm"
-                    url = xc.get_stream_url("series", str(ep_id), container)
-                    await fm.write_strm(strm_path, url)
+                    if series_info.get('tmdb_id'):
+                         tmdb_id = series_info.get('tmdb_id')
+                         series['tmdb'] = tmdb_id # For NFO
 
-            # Update Cache
-            cached = cached_series.get(series_id)
-            if not cached:
-                cached = SeriesCache(subscription_id=subscription_id, series_id=series_id)
-                db.add(cached)
-            
-            cached.name = name
-            cached.category_id = cat_id
-            cached.tmdb_id = str(tmdb_id) if tmdb_id else None
+                    cat_name = cat_map.get(cat_id, "Uncategorized")
+                    safe_cat = fm.sanitize_name(cat_name)
+                    safe_name = fm.sanitize_name(name)
+                    
+                    folder_name = safe_name
+                    if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
+                         folder_name = f"{safe_name} {{tmdb-{tmdb_id}}}"
 
-        # Check for missing NFO files
-        logger.info(f"Checking for missing series NFO files across {len(all_series)} series...")
-        nfo_created_count = 0
-        for series in all_series:
-            series_id = int(series['series_id'])
-            name = series['name']
-            cat_id = series['category_id']
-            
-            cat_name = cat_map.get(cat_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
-            safe_name = fm.sanitize_name(name)
-            
-            series_dir = f"{fm.output_dir}/{safe_cat}/{safe_name}"
-            tvshow_nfo_path = f"{series_dir}/tvshow.nfo"
-            
-            if os.path.exists(series_dir) and not os.path.exists(tvshow_nfo_path):
-                # PERFORMANCE OPTIMIZATION: Disabled - use metadata from cache/list
-                # tmdb_id = series.get('tmdb_id')
-                # if not tmdb_id or str(tmdb_id) in ['0', 'None', 'null', '']:
-                #     try:
-                #         info_response = await xc.get_series_info(str(series_id))
-                #         series_info = info_response.get('info', {})
-                #         if series_info.get('tmdb_id'):
-                #             series['tmdb_id'] = series_info['tmdb_id']
-                #     except Exception:
-                #         pass
+                    series_dir = f"{fm.output_dir}/{safe_cat}/{folder_name}"
+                    fm.ensure_directory(series_dir)
+                    
+                    # Always create tvshow.nfo
+                    nfo_path = f"{series_dir}/tvshow.nfo"
+                    await fm.write_nfo(nfo_path, fm.generate_show_nfo(series, prefix_regex, format_date, clean_name))
+                    
+                    for season_key, episodes in episodes_data.items():
+                        season_num = int(season_key)
+                        
+                        # SEASON FOLDERS LOGIC
+                        if use_season_folders:
+                            season_dir_name = f"Season {season_num:02d}"
+                            current_dir = f"{series_dir}/{season_dir_name}"
+                        else:
+                            current_dir = series_dir
+                            
+                        fm.ensure_directory(current_dir)
+                        
+                        for ep in episodes:
+                            ep_num = int(ep['episode_num'])
+                            ep_id = ep['id']
+                            container = ep['container_extension']
+                            title = ep.get('title', '')
+                            
+                            # Clean Episode Title
+                            # 1. Provide a hook to remove Series Name if it's prefixed
+                            # Just minimal heuristic: if title starts with series name, strip it
+                            # But risky. Let's rely on standard logic for now.
+                            
+                            formatted_ep = f"S{season_num:02d}E{ep_num:02d}"
+                            safe_ep_title = ""
+                            
+                            if title:
+                                # Remove extension if present in title
+                                if title.lower().endswith(f".{container}"):
+                                    title = title[:-len(container)-1]
+                                    
+                                safe_ep_title = fm.sanitize_name(title)
+                            
+                            if include_series_name:
+                                 filename_base = f"{safe_name} - {formatted_ep}"
+                            else:
+                                 filename_base = formatted_ep
+                                 
+                            if safe_ep_title:
+                                 filename = f"{filename_base} - {safe_ep_title}"
+                            else:
+                                 filename = filename_base
+                            
+                            strm_path = f"{current_dir}/{filename}.strm"
+                            url = xc.get_stream_url("series", str(ep_id), container)
+                            await fm.write_strm(strm_path, url)
+                            
+                            # Episode NFO
+                            ep_nfo_path = f"{current_dir}/{filename}.nfo"
+                            ep_nfo_content = fm.generate_episode_nfo(ep, name, season_num, ep_num)
+                            await fm.write_nfo(ep_nfo_path, ep_nfo_content)
 
-                await fm.write_nfo(tvshow_nfo_path, fm.generate_show_nfo(series, prefix_regex, format_date, clean_name))
-                nfo_created_count += 1
-        
-        if nfo_created_count > 0:
-            logger.info(f"Created {nfo_created_count} missing series NFO files")
+                    return {
+                        'action': 'update_cache',
+                        'data': {
+                            'series_id': series_id,
+                            'name': name,
+                            'category_id': cat_id,
+                            'tmdb_id': str(tmdb_id) if tmdb_id else None
+                        }
+                    }
+                except Exception as e:
+                     logger.error(f"Error processing series {series.get('name')}: {e}")
+                     return None
+
+        chunk_size = 20
+        for i in range(0, len(to_add_update), chunk_size):
+            chunk = to_add_update[i:i + chunk_size]
+            results = await asyncio.gather(*[process_single_series(s) for s in chunk])
+            
+            for res in results:
+                if res and res['action'] == 'update_cache':
+                    d = res['data']
+                    cached = cached_series.get(d['series_id'])
+                    if not cached:
+                        cached = SeriesCache(subscription_id=subscription_id, series_id=d['series_id'])
+                        db.add(cached)
+                    
+                    cached.name = d['name']
+                    cached.category_id = d['category_id']
+                    cached.tmdb_id = d['tmdb_id']
+            
+            db.commit()
 
         sync_state.items_added = len(to_add_update)
         sync_state.items_deleted = len(to_delete)
