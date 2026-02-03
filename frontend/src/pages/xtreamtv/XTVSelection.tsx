@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Save, CheckSquare, Square, Film, Tv, StopCircle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/utils';
 
 interface Subscription {
     id: number;
@@ -343,7 +344,7 @@ export default function XTVSelection() {
                                     {getStatus(selectedSubId, 'movies')?.last_sync && (
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Last Sync:</span>
-                                            <span>{new Date(getStatus(selectedSubId, 'movies')?.last_sync!).toLocaleString()}</span>
+                                            <span>{formatDateTime(getStatus(selectedSubId, 'movies')?.last_sync)}</span>
                                         </div>
                                     )}
                                     {getStatus(selectedSubId, 'movies')?.items_added !== undefined && (
@@ -402,7 +403,7 @@ export default function XTVSelection() {
                                     {getStatus(selectedSubId, 'series')?.last_sync && (
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Last Sync:</span>
-                                            <span>{new Date(getStatus(selectedSubId, 'series')?.last_sync!).toLocaleString()}</span>
+                                            <span>{formatDateTime(getStatus(selectedSubId, 'series')?.last_sync)}</span>
                                         </div>
                                     )}
                                     {getStatus(selectedSubId, 'series')?.items_added !== undefined && (

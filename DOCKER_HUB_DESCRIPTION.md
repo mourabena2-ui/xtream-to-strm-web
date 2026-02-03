@@ -94,4 +94,4 @@ MIT License - Free for personal and commercial use
 
 **Made with ❤️ for the Jellyfin community**
 
-v2.6.0 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
+v2.6.1 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)

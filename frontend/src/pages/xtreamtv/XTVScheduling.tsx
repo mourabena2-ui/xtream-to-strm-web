@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/utils';
 
 interface Subscription {
     id: number;
@@ -102,8 +103,7 @@ export default function XTVScheduling() {
     };
 
     const formatDate = (dateString: string | null) => {
-        if (!dateString) return 'Never';
-        return new Date(dateString).toLocaleString('en-US');
+        return formatDateTime(dateString);
     };
 
     const formatDuration = (start: string, end: string | null) => {

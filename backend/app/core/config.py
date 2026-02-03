@@ -3,7 +3,7 @@ from typing import List, Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Xtream to STRM"
-    VERSION: str = "2.6.0"
+    VERSION: str = "2.6.1"
     API_V1_STR: str = "/api/v1"
     
     # Database
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     
     # Redis / Celery
     REDIS_URL: str = "redis://localhost:6379/0"
-    TIMEZONE: str = "UTC"
+    TIMEZONE: str = "Europe/Paris"
     
     # Xtream Defaults (can be overridden by DB config)
     XC_URL: Optional[str] = None

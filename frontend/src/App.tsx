@@ -198,7 +198,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <div className="mt-auto pt-4 border-t border-border">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground px-3">
                         <Activity size={16} />
-                        <span>v2.6.0</span>
+                        <span>v2.6.1</span>
                     </div>
                 </div>
             </aside>

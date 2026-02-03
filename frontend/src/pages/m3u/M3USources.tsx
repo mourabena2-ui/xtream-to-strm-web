@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
+import { formatDateTime } from '@/lib/utils';
 import { Plus, Upload, Trash2, FileText, Link as LinkIcon } from "lucide-react";
 
 interface M3USource {
@@ -279,7 +280,7 @@ export default function M3USources() {
                                                 {source.source_type === 'url' ? source.url : source.file_path}
                                             </td>
                                             <td className="p-3 text-muted-foreground text-xs">
-                                                {source.last_sync ? new Date(source.last_sync).toLocaleString() : 'Never'}
+                                                {formatDateTime(source.last_sync)}
                                                 {source.sync_status === 'syncing' && (
                                                     <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                                                         Syncing...

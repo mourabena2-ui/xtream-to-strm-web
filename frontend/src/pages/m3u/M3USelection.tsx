@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Save, CheckSquare, Square, Film, Tv, StopCircle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/utils';
 
 interface M3USource {
     id: number;
@@ -445,7 +446,7 @@ export default function M3USelection() {
                                         {getStatus(selectedSourceId, 'movies')?.last_sync && (
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">Last Sync:</span>
-                                                <span>{new Date(getStatus(selectedSourceId, 'movies')?.last_sync!).toLocaleString()}</span>
+                                                <span>{formatDateTime(getStatus(selectedSourceId, 'movies')?.last_sync)}</span>
                                             </div>
                                         )}
                                         {getStatus(selectedSourceId, 'movies')?.items_added !== undefined && (
@@ -504,7 +505,7 @@ export default function M3USelection() {
                                         {getStatus(selectedSourceId, 'series')?.last_sync && (
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">Last Sync:</span>
-                                                <span>{new Date(getStatus(selectedSourceId, 'series')?.last_sync!).toLocaleString()}</span>
+                                                <span>{formatDateTime(getStatus(selectedSourceId, 'series')?.last_sync)}</span>
                                             </div>
                                         )}
                                         {getStatus(selectedSourceId, 'series')?.items_added !== undefined && (
